@@ -1,4 +1,5 @@
 import { getReducerConfig } from '../utils';
+import { loadUrlFilterFromStorage, saveUrlFilterToStorage } from 'devtoolApp/utils/general';
 
 export const STATE_KEY = `option`;
 
@@ -6,12 +7,13 @@ export const ACTIONS = {
   SET_IGNORE_NO_CONTENT_FILE: 'SET_IGNORE_NO_CONTENT_FILE',
   SET_BEAUTIFY_FILE: 'SET_BEAUTIFY_FILE',
   SET_URL_FILTER: 'SET_URL_FILTER',
+  LOAD_URL_FILTER_FROM_STORAGE: 'LOAD_URL_FILTER_FROM_STORAGE',
 };
 
 export const INITIAL_STATE = {
   ignoreNoContentFile: false,
   beautifyFile: false,
-  urlFilter: '',
+  urlFilter: loadUrlFilterFromStorage(), // Load from sessionStorage on initialization
 };
 
 export const setIgnoreNoContentFile = (willIgnore) => ({
@@ -24,9 +26,20 @@ export const setBeautifyFile = (willBeautify) => ({
   payload: !!willBeautify,
 });
 
-export const setUrlFilter = (filter) => ({
-  type: ACTIONS.SET_URL_FILTER,
-  payload: filter || '',
+export const setUrlFilter = (filter) => {
+  const urlFilter = filter || '';
+  // Save to sessionStorage when setting URL filter
+  saveUrlFilterToStorage(urlFilter);
+  
+  return {
+    type: ACTIONS.SET_URL_FILTER,
+    payload: urlFilter,
+  };
+};
+
+export const loadUrlFilterFromStorageAction = () => ({
+  type: ACTIONS.LOAD_URL_FILTER_FROM_STORAGE,
+  payload: loadUrlFilterFromStorage(),
 });
 
 export const uiReducer = (state = INITIAL_STATE, action) => {
@@ -43,7 +56,8 @@ export const uiReducer = (state = INITIAL_STATE, action) => {
         beautifyFile: action.payload,
       };
     }
-    case ACTIONS.SET_URL_FILTER: {
+    case ACTIONS.SET_URL_FILTER:
+    case ACTIONS.LOAD_URL_FILTER_FROM_STORAGE: {
       return {
         ...state,
         urlFilter: action.payload,

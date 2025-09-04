@@ -26,9 +26,11 @@ export const logIfDev = (...props) => {
   }
 };
 
+import { minimatch } from 'minimatch';
+
 /**
- * Simple glob pattern matching
- * Supports * (wildcard) and ** (recursive wildcard)
+ * Glob pattern matching using minimatch library
+ * Supports * (wildcard), ** (recursive wildcard), and negation with !
  * Supports multiple patterns separated by | (pipe)
  * @param {string} pattern - glob pattern(s), can be separated by |
  * @param {string} str - string to match
@@ -44,53 +46,63 @@ export const globMatch = (pattern, str) => {
   // If no valid patterns after filtering, match everything
   if (patterns.length === 0) return true;
   
-  // If any pattern matches, return true
-  return patterns.some(singlePattern => {
-    // Convert single glob pattern to regex pattern
-    let regexPattern = '';
-    let i = 0;
-    
-    while (i < singlePattern.length) {
-      const char = singlePattern[i];
-      
-      if (char === '*') {
-        if (i + 1 < singlePattern.length && singlePattern[i + 1] === '*') {
-          // Handle ** (match any number of directories)
-          if (i + 2 < singlePattern.length && singlePattern[i + 2] === '/') {
-            regexPattern += '(.*\/)?';
-            i += 3; // Skip **/ 
-          } else {
-            regexPattern += '.*';
-            i += 2; // Skip **
-          }
-        } else {
-          // Handle single * (match any characters)
-          regexPattern += '.*';
-          i++;
-        }
-      } else if (char === '?') {
-        regexPattern += '.';
-        i++;
-      } else {
-        // Escape special regex characters
-        if (/[.+^${}()|[\]\\]/.test(char)) {
-          regexPattern += '\\' + char;
-        } else {
-          regexPattern += char;
-        }
-        i++;
-      }
+  // Separate positive and negative patterns
+  const positivePatterns = [];
+  const negativePatterns = [];
+  
+  patterns.forEach(singlePattern => {
+    if (singlePattern.startsWith('!')) {
+      negativePatterns.push(singlePattern.slice(1)); // Remove the ! prefix
+    } else {
+      positivePatterns.push(singlePattern);
     }
-    
-    // Anchor the pattern
-    regexPattern = '^' + regexPattern + '$';
-    
+  });
+  
+  // If there are no positive patterns, default to match all
+  const hasPositiveMatch = positivePatterns.length === 0 || positivePatterns.some(pattern => {
     try {
-      const regex = new RegExp(regexPattern, 'i'); // Case insensitive
-      return regex.test(str);
+      return minimatch(str, pattern, { nocase: true });
     } catch (e) {
-      console.warn('[DEVTOOL] Invalid glob pattern:', singlePattern, e);
+      console.warn('[DEVTOOL] Invalid glob pattern:', pattern, e);
       return false;
     }
   });
+  
+  // If positive patterns don't match, return false
+  if (!hasPositiveMatch) return false;
+  
+  // Check negative patterns - if any negative pattern matches, exclude this item
+  const hasNegativeMatch = negativePatterns.some(pattern => {
+    try {
+      return minimatch(str, pattern, { nocase: true });
+    } catch (e) {
+      console.warn('[DEVTOOL] Invalid negative glob pattern:', pattern, e);
+      return false;
+    }
+  });
+  
+  // Return true if positive matches and no negative matches
+  return !hasNegativeMatch;
+};
+
+/**
+ * Storage utilities for URL filter persistence
+ */
+const URL_FILTER_STORAGE_KEY = 'resources_saver_url_filter';
+
+export const saveUrlFilterToStorage = (filter) => {
+  try {
+    sessionStorage.setItem(URL_FILTER_STORAGE_KEY, filter || '');
+  } catch (e) {
+    console.warn('[DEVTOOL] Failed to save URL filter to sessionStorage:', e);
+  }
+};
+
+export const loadUrlFilterFromStorage = () => {
+  try {
+    return sessionStorage.getItem(URL_FILTER_STORAGE_KEY) || '';
+  } catch (e) {
+    console.warn('[DEVTOOL] Failed to load URL filter from sessionStorage:', e);
+    return '';
+  }
 };
